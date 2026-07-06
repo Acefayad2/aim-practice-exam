@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [
+      "Desktop/aim-practice-exam/src/components/ExamScreen.jsx",
+      "src/components/ExamScreen.jsx"
+    ],
+    "ignoreValues": [
+      {
+        "rule": "overused-font",
+        "value": "inter",
+        "reason": "Pre-existing project choice for functional exam app; user confirmed intentional",
+        "createdAt": "2026-07-03T22:18:17.451Z"
+      }
+    ]
+  }
+}
