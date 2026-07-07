@@ -13,7 +13,14 @@ export default function ExamScreen({ exam, user, onFinish, onHome }) {
   const [earlyFail, setEarlyFail] = useState(false)
   const feedbackRef = useRef(null)
 
-  const questions = exam.questions
+  const [questions] = useState(() => {
+    const arr = [...exam.questions]
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]]
+    }
+    return arr
+  })
   const q = questions[current]
 
   useEffect(() => {
