@@ -3,6 +3,7 @@ import HomeScreen from './components/HomeScreen'
 import RegisterScreen from './components/RegisterScreen'
 import ExamScreen from './components/ExamScreen'
 import ResultsScreen from './components/ResultsScreen'
+import PasswordGate from './components/PasswordGate'
 import { healthQuestions } from './data/healthQuestions'
 import { lifeQuestions } from './data/lifeQuestions'
 
@@ -25,10 +26,13 @@ export async function submitToSheet(payload) {
 }
 
 export default function App() {
+  const [unlocked, setUnlocked] = useState(false)
   const [screen, setScreen] = useState('home') // 'home' | 'register' | 'exam' | 'results'
   const [selectedExam, setSelectedExam] = useState(null)
   const [examResults, setExamResults] = useState(null)
   const [user, setUser] = useState(null)
+
+  if (!unlocked) return <PasswordGate onUnlock={() => setUnlocked(true)} />
 
   const exams = {
     life: {
