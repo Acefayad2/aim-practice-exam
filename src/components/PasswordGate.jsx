@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useIsMobile } from '../hooks/useIsMobile'
 
 const PURPLE = '#5B2D8E'
 const LIGHT_PURPLE = '#F0EAF8'
@@ -8,6 +9,7 @@ export default function PasswordGate({ onUnlock }) {
   const [input, setInput] = useState('')
   const [error, setError] = useState(false)
   const [shake, setShake] = useState(false)
+  const isMobile = useIsMobile()
 
   function handleSubmit(e) {
     e.preventDefault()
@@ -33,7 +35,7 @@ export default function PasswordGate({ onUnlock }) {
       <div style={{
         background: '#fff',
         borderRadius: 16,
-        padding: '48px 40px',
+        padding: isMobile ? '32px 20px' : '48px 40px',
         width: '100%',
         maxWidth: 400,
         boxShadow: '0 4px 24px rgba(91,45,142,0.12)',

@@ -1,8 +1,40 @@
 import { useState, useEffect, useRef } from 'react'
+import { useIsMobile } from '../hooks/useIsMobile'
 
 const BLUE = '#5B2D8E'
 const TOTAL = 90
 const PASS_SCORE = 63
+const EXAM_DURATION = 60 * 60 // 1 hour in seconds
+
+function formatTime(seconds) {
+  const h = Math.floor(seconds / 3600)
+  const m = Math.floor((seconds % 3600) / 60)
+  const s = seconds % 60
+  if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+  return `${m}:${String(s).padStart(2, '0')}`
+}
+
+function shuffle(arr) {
+  const a = [...arr]
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[a[i], a[j]] = [a[j], a[i]]
+  }
+  return a
+}
+
+// Pick `count` random questions from the pool and shuffle each question's
+// answer choices, so order + positions differ every session (no memorizing).
+function prepareQuestions(pool, count = TOTAL) {
+  const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
+  return shuffle(pool).slice(0, count).map(q => {
+    const correctText = (q.choices.find(c => c[0] === q.answer) || '').substring(3)
+    const texts = shuffle(q.choices.map(c => c.substring(3)))
+    const choices = texts.map((t, i) => `${LETTERS[i]}) ${t}`)
+    const answer = LETTERS[texts.indexOf(correctText)] ?? q.answer
+    return { ...q, choices, answer }
+  })
+}
 
 export default function ExamScreen({ exam, user, onFinish, onHome }) {
   const [current, setCurrent] = useState(0)
@@ -11,17 +43,35 @@ export default function ExamScreen({ exam, user, onFinish, onHome }) {
   const [revealed, setRevealed] = useState(false) // true after answer locked in
   const [flagged, setFlagged] = useState(new Set())
   const [earlyFail, setEarlyFail] = useState(false)
+  const [timeLeft, setTimeLeft] = useState(EXAM_DURATION)
+  const [timesUp, setTimesUp] = useState(false)
   const feedbackRef = useRef(null)
+  const submitRef = useRef(null)
 
-  const [questions] = useState(() => {
-    const arr = [...exam.questions]
-    for (let i = arr.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [arr[i], arr[j]] = [arr[j], arr[i]]
-    }
-    return arr
-  })
+  const [questions] = useState(() => prepareQuestions(exam.questions, TOTAL))
   const q = questions[current]
+
+  // Countdown timer — auto-submits when it hits zero
+  useEffect(() => {
+    if (timesUp) return
+    const id = setInterval(() => {
+      setTimeLeft(t => {
+        if (t <= 1) {
+          clearInterval(id)
+          setTimesUp(true)
+          submitRef.current?.()
+          return 0
+        }
+        return t - 1
+      })
+    }, 1000)
+    return () => clearInterval(id)
+  }, [timesUp])
+
+  // Keep submitRef current so the timer closure can call it
+  useEffect(() => {
+    submitRef.current = submitExam
+  })
 
   useEffect(() => {
     const saved = answers[current]
@@ -85,6 +135,9 @@ export default function ExamScreen({ exam, user, onFinish, onHome }) {
     setFlagged(nf)
   }
 
+  const [navOpen, setNavOpen] = useState(false)
+  const isMobile = useIsMobile()
+
   const answeredCount = Object.keys(answers).length
   const correctSoFar = Object.entries(answers).filter(
     ([i, a]) => a === questions[parseInt(i)].answer
@@ -92,38 +145,107 @@ export default function ExamScreen({ exam, user, onFinish, onHome }) {
   const wrongSoFar = answeredCount - correctSoFar
   const isCorrect = revealed && selected === q.answer
 
+  const navigatorGrid = (
+    <div>
+      <div style={{ fontSize: 11, fontWeight: 700, color: '#718096', letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 12 }}>Navigator</div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 4 }}>
+        {questions.map((_, i) => {
+          const ans = answers[i]
+          const isCurrent = i === current
+          const isAnswered = ans != null
+          const isRight = isAnswered && ans === questions[i].answer
+          const isFlagged = flagged.has(i)
+          let bg = '#fafafa', border = '2px solid #e2e8f0', color = '#a0aec0'
+          if (isCurrent) { bg = BLUE; border = `2px solid ${BLUE}`; color = '#fff' }
+          else if (isAnswered) {
+            bg = isRight ? '#E8F5E9' : '#FFEBEE'
+            border = `2px solid ${isRight ? '#66BB6A' : '#EF5350'}`
+            color = isRight ? '#2e7d32' : '#c62828'
+          }
+          if (isFlagged && !isCurrent) border = '2px solid #F59E0B'
+          return (
+            <button key={i} onClick={() => { if (answers[i] != null || i <= current) { setCurrent(i); setNavOpen(false) } }}
+              style={{ width: '100%', aspectRatio: '1', borderRadius: 6, fontSize: 11, fontWeight: 700, border, background: bg, color,
+                cursor: (answers[i] != null || i <= current) ? 'pointer' : 'default',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>
+              {i + 1}
+            </button>
+          )
+        })}
+      </div>
+      <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 5, fontSize: 12, color: '#718096' }}>
+        {[[BLUE, 'Current'], ['#4CAF50', 'Correct'], ['#ef5350', 'Wrong'], ['#F59E0B', 'Flagged']].map(([color, label]) => (
+          <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ width: 12, height: 12, borderRadius: 3, background: color }} />
+            <span>{label}</span>
+          </div>
+        ))}
+      </div>
+      <div style={{ marginTop: 18, background: '#f0f4f8', borderRadius: 10, padding: '12px 14px' }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: '#718096', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 1 }}>Score</div>
+        <div style={{ fontSize: 26, fontWeight: 900, color: answeredCount > 0 && (correctSoFar / answeredCount) >= 0.7 ? '#2e7d32' : '#c62828' }}>
+          {answeredCount > 0 ? `${Math.round((correctSoFar / answeredCount) * 100)}%` : '—'}
+        </div>
+        <div style={{ fontSize: 12, color: '#718096', marginTop: 2 }}>{correctSoFar}/{answeredCount} correct</div>
+        <div style={{ fontSize: 12, color: '#718096', marginTop: 1 }}>Need 63 to pass</div>
+      </div>
+    </div>
+  )
+
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: '#f0f4f8' }}>
       {/* Top bar */}
-      <div style={{ background: BLUE, color: '#fff', padding: '12px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', flexShrink: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+      <div style={{ background: BLUE, color: '#fff', padding: isMobile ? '10px 14px' : '12px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontWeight: 800, fontSize: 18, letterSpacing: 1 }}>AIM</span>
-          <span style={{ opacity: 0.5 }}>|</span>
-          <span style={{ fontSize: 13, fontWeight: 600, opacity: 0.9, maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{exam.title}</span>
+          {!isMobile && <>
+            <span style={{ opacity: 0.5 }}>|</span>
+            <span style={{ fontSize: 13, fontWeight: 600, opacity: 0.9, maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{exam.title}</span>
+          </>}
         </div>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center', fontSize: 13, flexWrap: 'wrap' }}>
-          {user && <span style={{ opacity: 0.8 }}>{user.name}</span>}
-          <span style={{ background: 'rgba(255,255,255,0.15)', borderRadius: 6, padding: '4px 10px' }}>
+        <div style={{ display: 'flex', gap: isMobile ? 6 : 10, alignItems: 'center', fontSize: 13 }}>
+          {!isMobile && user && <span style={{ opacity: 0.8 }}>{user.name}</span>}
+          <span style={{ background: 'rgba(255,255,255,0.15)', borderRadius: 6, padding: '4px 8px' }}>
             Q {current + 1}/{TOTAL}
           </span>
-          <span style={{ background: 'rgba(76,175,80,0.25)', borderRadius: 6, padding: '4px 10px', color: '#A5D6A7' }}>
-            ✓ {correctSoFar}
+          {!isMobile && <>
+            <span style={{ background: 'rgba(76,175,80,0.25)', borderRadius: 6, padding: '4px 10px', color: '#A5D6A7' }}>✓ {correctSoFar}</span>
+            <span style={{ background: 'rgba(244,67,54,0.25)', borderRadius: 6, padding: '4px 10px', color: '#EF9A9A' }}>✗ {wrongSoFar}</span>
+          </>}
+          <span style={{
+            background: timeLeft <= 600 ? 'rgba(239,83,80,0.35)' : 'rgba(255,255,255,0.15)',
+            borderRadius: 6, padding: '4px 8px', fontWeight: 700,
+            color: timeLeft <= 600 ? '#FFCDD2' : '#fff',
+            minWidth: 64, textAlign: 'center',
+            animation: timeLeft <= 60 ? 'pulse 1s ease-in-out infinite' : 'none',
+          }}>
+            ⏱ {formatTime(timeLeft)}
           </span>
-          <span style={{ background: 'rgba(244,67,54,0.25)', borderRadius: 6, padding: '4px 10px', color: '#EF9A9A' }}>
-            ✗ {wrongSoFar}
-          </span>
+          {isMobile && (
+            <button onClick={() => setNavOpen(!navOpen)}
+              style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)', color: '#fff', borderRadius: 6, padding: '4px 10px', fontSize: 12, cursor: 'pointer', fontWeight: 600 }}>
+              Nav
+            </button>
+          )}
           <button
             onClick={onHome}
-            style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.35)', color: '#fff', borderRadius: 6, padding: '4px 12px', fontSize: 13, cursor: 'pointer' }}
+            style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.35)', color: '#fff', borderRadius: 6, padding: '4px 10px', fontSize: 13, cursor: 'pointer' }}
           >
             Exit
           </button>
         </div>
       </div>
 
+      {/* Mobile nav drawer */}
+      {isMobile && navOpen && (
+        <div style={{ background: '#fff', borderBottom: '1px solid #e2e8f0', padding: '16px 14px' }}>
+          {navigatorGrid}
+        </div>
+      )}
+
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         {/* Main question area */}
-        <div style={{ flex: 1, padding: '28px 36px', overflowY: 'auto' }}>
+        <div style={{ flex: 1, padding: isMobile ? '16px 14px' : '28px 36px', overflowY: 'auto' }}>
 
           {/* Progress bar */}
           <div style={{ marginBottom: 20 }}>
@@ -141,6 +263,17 @@ export default function ExamScreen({ exam, user, onFinish, onHome }) {
             </div>
           </div>
 
+          {/* Time's up banner */}
+          {timesUp && (
+            <div style={{ background: '#B71C1C', color: '#fff', borderRadius: 10, padding: '12px 16px', marginBottom: 16, display: 'flex', gap: 10, alignItems: 'center' }}>
+              <span style={{ fontSize: 20 }}>⏰</span>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 14 }}>Time's up! Your exam has been submitted.</div>
+                <div style={{ fontSize: 13, opacity: 0.85 }}>Unanswered questions are counted as skipped.</div>
+              </div>
+            </div>
+          )}
+
           {/* Early fail warning */}
           {earlyFail && (
             <div style={{ background: '#FFEBEE', border: '1px solid #EF9A9A', borderRadius: 10, padding: '12px 16px', marginBottom: 16, display: 'flex', gap: 10, alignItems: 'center' }}>
@@ -153,7 +286,7 @@ export default function ExamScreen({ exam, user, onFinish, onHome }) {
           )}
 
           {/* Question card */}
-          <div style={{ background: '#fff', borderRadius: 14, padding: '26px 30px', boxShadow: '0 2px 14px rgba(0,0,0,0.07)', marginBottom: 16 }}>
+          <div style={{ background: '#fff', borderRadius: 14, padding: isMobile ? '18px 16px' : '26px 30px', boxShadow: '0 2px 14px rgba(0,0,0,0.07)', marginBottom: 16 }}>
             <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', marginBottom: 22 }}>
               <span style={{ background: BLUE, color: '#fff', borderRadius: 8, padding: '4px 12px', fontWeight: 800, fontSize: 15, flexShrink: 0 }}>
                 {current + 1}
@@ -194,10 +327,10 @@ export default function ExamScreen({ exam, user, onFinish, onHome }) {
                     onClick={() => handleSelect(letter)}
                     disabled={revealed}
                     style={{
-                      display: 'flex', alignItems: 'center', gap: 14,
-                      padding: '13px 16px', borderRadius: 10, border, background: bg,
+                      display: 'flex', alignItems: 'center', gap: isMobile ? 10 : 14,
+                      padding: isMobile ? '12px 12px' : '13px 16px', borderRadius: 10, border, background: bg,
                       cursor: revealed ? 'default' : 'pointer',
-                      textAlign: 'left', fontSize: 15, color, fontWeight,
+                      textAlign: 'left', fontSize: isMobile ? 14 : 15, color, fontWeight,
                       transition: 'all 0.18s',
                     }}
                   >
@@ -291,70 +424,19 @@ export default function ExamScreen({ exam, user, onFinish, onHome }) {
           )}
         </div>
 
-        {/* Navigator sidebar */}
-        <div style={{ width: 200, background: '#fff', borderLeft: '1px solid #e2e8f0', padding: '18px 14px', overflowY: 'auto', flexShrink: 0 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: '#718096', letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 12 }}>Navigator</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 4 }}>
-            {questions.map((_, i) => {
-              const ans = answers[i]
-              const isCurrent = i === current
-              const isAnswered = ans != null
-              const isRight = isAnswered && ans === questions[i].answer
-              const isFlagged = flagged.has(i)
-
-              let bg = '#fafafa'
-              let border = '2px solid #e2e8f0'
-              let color = '#a0aec0'
-
-              if (isCurrent) { bg = BLUE; border = `2px solid ${BLUE}`; color = '#fff' }
-              else if (isAnswered) {
-                bg = isRight ? '#E8F5E9' : '#FFEBEE'
-                border = `2px solid ${isRight ? '#66BB6A' : '#EF5350'}`
-                color = isRight ? '#2e7d32' : '#c62828'
-              }
-              if (isFlagged && !isCurrent) border = '2px solid #F59E0B'
-
-              return (
-                <button
-                  key={i}
-                  onClick={() => { if (answers[i] != null || i <= current) { setCurrent(i) } }}
-                  style={{
-                    width: '100%', aspectRatio: '1', borderRadius: 6, fontSize: 11,
-                    fontWeight: 700, border, background: bg, color,
-                    cursor: (answers[i] != null || i <= current) ? 'pointer' : 'default',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0,
-                  }}
-                >
-                  {i + 1}
-                </button>
-              )
-            })}
+        {/* Navigator sidebar — desktop only */}
+        {!isMobile && (
+          <div style={{ width: 200, background: '#fff', borderLeft: '1px solid #e2e8f0', padding: '18px 14px', overflowY: 'auto', flexShrink: 0 }}>
+            {navigatorGrid}
           </div>
-          <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 5, fontSize: 12, color: '#718096' }}>
-            {[
-              [BLUE, 'Current'],
-              ['#4CAF50', 'Correct'],
-              ['#ef5350', 'Wrong'],
-              ['#F59E0B', 'Flagged'],
-            ].map(([color, label]) => (
-              <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <div style={{ width: 12, height: 12, borderRadius: 3, background: color }} />
-                <span>{label}</span>
-              </div>
-            ))}
-          </div>
-
-          {/* Live score card */}
-          <div style={{ marginTop: 18, background: '#f0f4f8', borderRadius: 10, padding: '12px 14px' }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#718096', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 1 }}>Score</div>
-            <div style={{ fontSize: 26, fontWeight: 900, color: answeredCount > 0 && (correctSoFar / answeredCount) >= 0.7 ? '#2e7d32' : '#c62828' }}>
-              {answeredCount > 0 ? `${Math.round((correctSoFar / answeredCount) * 100)}%` : '—'}
-            </div>
-            <div style={{ fontSize: 12, color: '#718096', marginTop: 2 }}>{correctSoFar}/{answeredCount} correct</div>
-            <div style={{ fontSize: 12, color: '#718096', marginTop: 1 }}>Need 63 to pass</div>
-          </div>
-        </div>
+        )}
       </div>
+      <style>{`
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.55; }
+        }
+      `}</style>
     </div>
   )
 }

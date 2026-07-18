@@ -1,3 +1,5 @@
+import { useIsMobile } from '../hooks/useIsMobile'
+
 const PURPLE = '#5B2D8E'
 const LIGHT_PURPLE = '#F0EAF8'
 
@@ -7,12 +9,13 @@ const studyGuides = {
 }
 
 export default function HomeScreen({ exams, onStart }) {
+  const isMobile = useIsMobile()
   return (
-    <div style={{ minHeight: '100vh', background: '#f5f0fa', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 16px' }}>
+    <div style={{ minHeight: '100vh', background: '#f5f0fa', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: isMobile ? '24px 16px' : '32px 16px' }}>
       {/* Header */}
-      <div style={{ textAlign: 'center', marginBottom: 48 }}>
-        <img src="/aim-logo.svg" alt="AIM" style={{ height: 80, marginBottom: 16 }} />
-        <h1 style={{ fontSize: 36, fontWeight: 800, color: PURPLE, marginBottom: 12, lineHeight: 1.1 }}>
+      <div style={{ textAlign: 'center', marginBottom: isMobile ? 28 : 48 }}>
+        <img src="/aim-logo.svg" alt="AIM" style={{ height: isMobile ? 60 : 80, marginBottom: 16 }} />
+        <h1 style={{ fontSize: isMobile ? 28 : 36, fontWeight: 800, color: PURPLE, marginBottom: 12, lineHeight: 1.1 }}>
           Practice Exam Center
         </h1>
         <p style={{ color: '#4a5568', fontSize: 16, maxWidth: 480, margin: '0 auto' }}>
@@ -22,15 +25,15 @@ export default function HomeScreen({ exams, onStart }) {
       </div>
 
       {/* Exam Cards */}
-      <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', justifyContent: 'center', maxWidth: 800 }}>
+      <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', justifyContent: 'center', maxWidth: 800, width: '100%' }}>
         {Object.values(exams).map((exam) => (
           <div
             key={exam.id}
             style={{
               background: '#fff',
               borderRadius: 16,
-              padding: '32px 36px',
-              width: 340,
+              padding: isMobile ? '24px 20px' : '32px 36px',
+              width: isMobile ? '100%' : 340,
               boxShadow: '0 4px 24px rgba(91,45,142,0.10)',
               border: `2px solid ${LIGHT_PURPLE}`,
               display: 'flex',

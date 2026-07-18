@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useIsMobile } from '../hooks/useIsMobile'
 
 const BLUE = '#5B2D8E'
 const PASS_SCORE = 63
@@ -28,6 +29,7 @@ function classifyTopic(questionText) {
 export default function ResultsScreen({ exam, results, onRetry, onHome }) {
   const [activeTab, setActiveTab] = useState('summary') // 'summary' | 'review'
   const [filter, setFilter] = useState('wrong') // 'all' | 'wrong' | 'correct'
+  const isMobile = useIsMobile()
 
   const { results: items, earlyFail } = results
   const correct = items.filter(r => r.correct).length
@@ -58,25 +60,25 @@ export default function ResultsScreen({ exam, results, onRetry, onHome }) {
   return (
     <div style={{ minHeight: '100vh', background: '#f0f4f8' }}>
       {/* Top bar */}
-      <div style={{ background: BLUE, color: '#fff', padding: '14px 28px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div style={{ background: BLUE, color: '#fff', padding: isMobile ? '12px 14px' : '14px 28px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <span style={{ fontWeight: 800, fontSize: 18, letterSpacing: 1 }}>AIM</span>
-        <div style={{ display: 'flex', gap: 10 }}>
+        <div style={{ display: 'flex', gap: 8 }}>
           <button
             onClick={onRetry}
-            style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)', color: '#fff', borderRadius: 7, padding: '7px 16px', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}
+            style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)', color: '#fff', borderRadius: 7, padding: isMobile ? '6px 12px' : '7px 16px', fontWeight: 600, fontSize: isMobile ? 12 : 13, cursor: 'pointer' }}
           >
-            Retry Exam
+            Retry
           </button>
           <button
             onClick={onHome}
-            style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)', color: '#fff', borderRadius: 7, padding: '7px 16px', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}
+            style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)', color: '#fff', borderRadius: 7, padding: isMobile ? '6px 12px' : '7px 16px', fontWeight: 600, fontSize: isMobile ? 12 : 13, cursor: 'pointer' }}
           >
-            ← All Exams
+            ← Exams
           </button>
         </div>
       </div>
 
-      <div style={{ maxWidth: 860, margin: '0 auto', padding: '32px 20px' }}>
+      <div style={{ maxWidth: 860, margin: '0 auto', padding: isMobile ? '16px 14px' : '32px 20px' }}>
 
         {/* Early fail banner */}
         {earlyFail && (
@@ -93,12 +95,12 @@ export default function ResultsScreen({ exam, results, onRetry, onHome }) {
 
         {/* Score card */}
         <div style={{
-          background: '#fff', borderRadius: 16, padding: '32px 36px', marginBottom: 24,
+          background: '#fff', borderRadius: 16, padding: isMobile ? '20px 16px' : '32px 36px', marginBottom: 24,
           boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
           border: `3px solid ${passed ? '#2e7d32' : '#c62828'}`,
-          display: 'flex', gap: 32, alignItems: 'center', flexWrap: 'wrap',
+          display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? 20 : 32, alignItems: isMobile ? 'stretch' : 'center',
         }}>
-          <div style={{ flex: 1, minWidth: 200 }}>
+          <div style={{ flex: 1 }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: '#718096', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 6 }}>
               {exam.title}
             </div>
@@ -118,7 +120,7 @@ export default function ResultsScreen({ exam, results, onRetry, onHome }) {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, minWidth: 260 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
             {[
               { label: 'Correct', value: correct, color: '#2e7d32', bg: '#E8F5E9' },
               { label: 'Wrong', value: wrong, color: '#c62828', bg: '#FFEBEE' },
@@ -171,7 +173,7 @@ export default function ResultsScreen({ exam, results, onRetry, onHome }) {
                           </span>
                         </div>
                         <div style={{ height: 8, background: '#e2e8f0', borderRadius: 4, overflow: 'hidden' }}>
-                          <div style={{ height: '100%', width: `${topicPct}%`, background: topicPct < 50 ? '#ef5350' : '#FF9800', borderRadius: 4, transition: 'width 0.5s' }} />
+                          <div style={{ height: '100%', width: '100%', background: topicPct < 50 ? '#ef5350' : '#FF9800', borderRadius: 4, transform: `scaleX(${topicPct / 100})`, transformOrigin: 'left', transition: 'transform 0.5s' }} />
                         </div>
                       </div>
                     )
